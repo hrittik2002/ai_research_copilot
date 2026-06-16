@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg-primary: #1a1a1a;
+  --color-bg-sidebar: #171717;
+  --color-bg-elevated: #2a2a2a;
+  --color-border: #3a3a3a;
+  --color-text-primary: #e8e8e6;
+  --color-text-secondary: #9b9b97;
+  --color-accent: #d97757;
+  --color-success: #4ade80;
+  --color-error: #f87171;
+
+  --font-sans: -apple-system, "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background-color: #1a1a1a;
+  color: #e8e8e6;
+  font-family: -apple-system, "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+@keyframes pulse-border {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 2px #d97757; }
+  50% { opacity: 0.5; box-shadow: 0 0 0 4px #d9775744; }
+}
+
+.animate-pulse-border {
+  animation: pulse-border 1.5s ease-in-out infinite;
+}
