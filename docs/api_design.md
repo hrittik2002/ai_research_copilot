@@ -187,32 +187,47 @@ Trigger the LangGraph research workflow for an existing session. Pushes a job to
 ---
 
 ### GET /sessions/{session_id}/status 🔲
-**SSE (Server-Sent Events)** — streams one event per LangGraph node as the workflow progresses. The client keeps this connection open while the workflow runs.
+**Polling endpoint** — client calls this every 2–3 seconds to get the current workflow state. Reads directly from the `workflow_runs` collection in MongoDB. No streaming, no open connection.
+
+When `status` is `complete` or `failed`, the client stops polling and (if complete) opens the WebSocket for chat.
 
 **Auth required**
 
-**How SSE works:** The server holds the HTTP connection open and pushes `data:` lines whenever a node completes. The browser's `EventSource` API consumes these automatically. Each event is a JSON payload.
-
-**Event format**
+**Response 200**
+```json
+{
+  "session_id": "sess_abc123",
+  "status": "running",
+  "started_at": "2026-06-16T10:00:05Z",
+  "completed_at": null,
+  "error_message": null,
+  "nodes": [
+    {
+      "node_name": "intent_parser",
+      "status": "complete",
+      "started_at": "2026-06-16T10:00:06Z",
+      "output": { "search_queries": ["Acme Corp products", "Acme Corp funding"] },
+      "error": null
+    },
+    {
+      "node_name": "web_searcher",
+      "status": "running",
+      "started_at": "2026-06-16T10:00:09Z",
+      "output": null,
+      "error": null
+    }
+  ]
+}
 ```
-event: node_update
-data: {"node": "intent_parser", "status": "complete", "message": "Research strategy ready", "timestamp": "2026-06-16T10:01:00Z"}
 
-event: node_update
-data: {"node": "web_searcher", "status": "complete", "message": "Found 8 results", "timestamp": "2026-06-16T10:01:05Z"}
+**Node names** (in execution order):
+`intent_parser` → `web_searcher` / `website_scraper` (parallel) → `data_merger` → `gap_detector` → `targeted_researcher` (conditional) → `insight_extractor` → `report_compiler` → `quality_validator` → `finalizer`
 
-event: done
-data: {"session_id": "sess_abc123", "status": "complete"}
-```
+**Node status values:** `pending` | `running` | `complete` | `failed`
 
-**Possible node names** (in order):
-`intent_parser` → `web_searcher` / `website_scraper` (parallel) → `data_merger` → `gap_detector` → `targeted_researcher` (if gaps found) → `insight_extractor` → `report_compiler` → `quality_validator` → `finalizer`
-
-**Error event**
-```
-event: error
-data: {"node": "web_searcher", "error": "Tavily API timeout", "timestamp": "..."}
-```
+**Errors**
+- `404` — session not found or workflow not yet started (call `POST /run` first)
+- `403` — session belongs to a different user
 
 ---
 
@@ -374,7 +389,7 @@ Fetch the WorkflowRun record — useful for debugging and showing which nodes ra
 | 4 | GET | `/sessions` | 🔲 Build | Yes |
 | 5 | GET | `/sessions/{session_id}` | 🔲 Build | Yes |
 | 6 | POST | `/sessions/{session_id}/run` | 🔲 Build | Yes |
-| 7 | GET | `/sessions/{session_id}/status` | 🔲 Build (SSE) | Yes |
+| 7 | GET | `/sessions/{session_id}/status` | 🔲 Build (polling) | Yes |
 | 8 | GET | `/sessions/{session_id}/report` | 🔲 Build | Yes |
 | 9 | WS | `/chat/{session_id}` | 🔲 Build | Yes (query param) |
 | 10 | GET | `/sessions/{session_id}/messages` | 🔲 Build | Yes |

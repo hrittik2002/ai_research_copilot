@@ -5,6 +5,49 @@ Format: `## YYYY-MM-DD HH:MM` followed by a bullet list of what changed and why.
 
 ---
 
+## 2026-06-16 — LangGraph workflow + Worker checkpointing
+
+- Rewrote `backend/app/workflows/research_graph.py` — full 10-node sequential LangGraph flow:
+  - `intent_parser` → `web_searcher` → `website_scraper` → `data_merger` → `gap_detector` → (conditional) `targeted_researcher` → `insight_extractor` → `report_compiler` → `quality_validator` → `finalizer`
+  - Web search uses DuckDuckGo free JSON API (no Tavily key needed for demo)
+  - Website scraping uses `httpx` + Python built-in `html.parser` (no beautifulsoup4 needed)
+  - All LLM calls use `gpt-4o-mini` via `langchain_openai`
+  - Nodes are pure functions (no side effects) — all MongoDB writes live in the worker
+  - `gap_detector` loops back via `targeted_researcher` up to 2 retries
+  - `finalizer_node` is a no-op terminal node — signals completion to the worker
+- Rewrote `backend/worker.py` — streaming loop with per-node MongoDB checkpointing:
+  - Calls `connect_to_mongo()` on startup (separate process from FastAPI)
+  - Uses `graph.stream(state, stream_mode="updates")` to get per-node state diffs
+  - After each node: appends to `workflow_runs.nodes[]` in MongoDB (the polling endpoint reads this)
+  - After `finalizer` node: writes `reports` doc + marks session and workflow_run `complete`
+  - On exception: marks both `workflow_runs` and `sessions` as `failed`
+- Updated `backend/requirements.txt` — added `httpx`, `langchain`, `langchain-core`, `langchain-openai`, `langgraph` (all were installed in venv but missing from the file)
+
+**IDE note:** `bson` and `httpx` show unresolved import warnings in the IDE because the interpreter isn't pointed at `.venv`. Both packages are confirmed installed. Fix: set VS Code Python interpreter to `backend/.venv/bin/python`.
+
+---
+
+## 2026-06-16 — Workflow APIs (POST /sessions/{id}/run, GET /sessions/{id}/status)
+
+- Updated `docs/api_design.md` — changed `GET /sessions/{id}/status` from SSE to a plain polling REST endpoint. Client calls every 2–3 seconds; stops when status is `complete` or `failed`. Simpler for a demo.
+- Created `backend/app/models/workflow.py` — `NodeRun`, `StartWorkflowResponse`, `WorkflowStatusResponse` schemas.
+- Created `backend/app/services/workflow_service.py`:
+  - `start_workflow`: validates session ownership and `pending` state, creates a `workflow_runs` doc in MongoDB (so status endpoint works immediately), sets session status to `running`, then pushes job to Redis queue.
+  - `get_workflow_status`: reads from `workflow_runs` collection and returns current state + node list.
+- Updated `backend/app/routes/sessions.py` — added `POST /{session_id}/run` (202) and `GET /{session_id}/status` routes.
+
+---
+
+## 2026-06-16 — Sessions API (POST /sessions, GET /sessions, GET /sessions/{id})
+
+- Created `backend/app/core/dependencies.py` — `get_current_user` FastAPI dependency. Extracts the JWT from the `Authorization: Bearer` header, decodes it via `decode_access_token`, and returns the `sub` claim (user_id string). No DB roundtrip — trusts the signed token.
+- Created `backend/app/models/session.py` — three Pydantic schemas: `CreateSessionRequest` (with field validation), `ReportContent` (all 9 report sections typed), `SessionResponse` (full session + optional report), `SessionListItemResponse` (no report, for list endpoints).
+- Created `backend/app/services/session_service.py` — `create_session`, `get_sessions`, `get_session`. `get_session` fetches the report from the `reports` collection only when `status == "complete"`. `user_id` stored as string in MongoDB to match the JWT `sub` claim pattern. Malformed ObjectId returns 404 (not 400) to avoid leaking schema details.
+- Created `backend/app/routes/sessions.py` — three route handlers, all protected via `Depends(get_current_user)`.
+- Updated `backend/app/main.py` — imported and registered `sessions.router`.
+
+---
+
 ## 2026-06-16 — DB Schema Alignment
 
 - Updated `docs/architecture.md` §4.1 to match `docs/db_design.png` (authoritative source):
