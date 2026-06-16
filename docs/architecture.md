@@ -97,36 +97,77 @@ is needed, and documents map directly to the report structure.
 **Collections:**
 
 ```
-sessions
-{
-  _id:          ObjectId,
-  company_name: String,
-  website:      String,
-  objective:    String,
-  status:       String,     // "pending" | "running" | "complete" | "failed"
-  report:       Object,     // full structured report (nested JSON)
-  created_at:   DateTime,
-  updated_at:   DateTime
-}
-
-messages
+users
 {
   _id:        ObjectId,
-  session_id: ObjectId,     // ref → sessions
-  role:       String,       // "user" | "assistant"
+  full_name:  String,
+  email:      String,       // unique
+  password:   String,       // bcrypt hashed
+  created_at: DateTime
+}
+
+sessions
+{
+  _id:                  ObjectId,
+  user_id:              ObjectId,    // ref → users
+  company_name:         String,
+  company_website:      String,
+  research_objective:   String,
+  status:               String,      // "pending" | "running" | "complete" | "failed"
+  created_at:           DateTime,
+  updated_at:           DateTime
+}
+
+reports                              // separate collection — 1:1 with sessions
+{
+  _id:          ObjectId,
+  session_id:   ObjectId,            // ref → sessions
+  generated_at: DateTime,
+  content: {
+    company_overview:       String,
+    products_services:      String,
+    target_customers:       String,
+    business_signals:       String,
+    risks_challenges:       String,
+    discovery_questions:    String[],
+    outreach_strategy:      String,
+    unknowns:               String,
+    sources:                String[]
+  }
+}
+
+workflow_runs                        // execution log — 1:1 with sessions
+{
+  _id:            ObjectId,
+  session_id:     ObjectId,          // ref → sessions
+  status:         String,            // "pending" | "running" | "complete" | "failed"
+  started_at:     DateTime,
+  completed_at:   DateTime,
+  error_message:  String,            // null if no error
+  nodes: [
+    {
+      node_name:  String,            // e.g. "intent_parser", "web_searcher"
+      status:     String,            // "pending" | "running" | "complete" | "failed"
+      started_at: DateTime,
+      output:     Object,            // whatever the node produced (raw JSON)
+      error:      String             // null if no error
+    }
+  ]
+}
+
+messages                             // chat history — not in db_design.png but required by spec
+{
+  _id:        ObjectId,
+  session_id: ObjectId,              // ref → sessions
+  role:       String,                // "user" | "assistant"
   content:    String,
   created_at: DateTime
 }
-
-checkpoints
-{
-  _id:        ObjectId,
-  session_id: ObjectId,     // ref → sessions
-  node_name:  String,       // which node saved this checkpoint
-  state:      Object,       // full LangGraph state snapshot at this point
-  created_at: DateTime
-}
 ```
+
+> **Note on `reports` vs embedded document:** The DB design (`db_design.png`) stores the report as a separate collection with a `session_id` FK rather than embedding it inside the session document. This keeps session documents small for list queries and lets the report be written atomically by the worker when the workflow completes.
+
+> **Note on `workflow_runs` vs `checkpoints`:** The DB design uses `workflow_runs` with a `nodes[]` array as an execution log (per-node status, output, error). This replaces the earlier `checkpoints` design (which stored raw LangGraph state snapshots). LangGraph's built-in memory checkpointer handles in-process recovery; `workflow_runs` serves as the persistent audit log and the data source for SSE progress events.
 
 ---
 
@@ -157,8 +198,8 @@ and responsive, the worker processes jobs at a controlled pace.
 redis.lpush("research_jobs", json.dumps({
     "session_id": session_id,
     "company_name": company_name,
-    "website": website,
-    "objective": objective
+    "company_website": company_website,
+    "research_objective": research_objective
 }))
 
 # LangGraph Worker — pull job (blocking, waits for next job)
@@ -190,10 +231,10 @@ any LLM synthesis begins, avoiding wasted LLM calls on incomplete data.
 
 ```python
 class ResearchState(TypedDict):
-    # Inputs
-    company_name:      str
-    website:           str
-    objective:         str
+    # Inputs — match DB field names exactly
+    company_name:          str
+    company_website:       str
+    research_objective:    str
 
     # Populated during data collection
     search_results:    list[str]      # from Tavily web search
