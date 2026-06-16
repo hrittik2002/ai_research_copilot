@@ -60,11 +60,39 @@ Read the relevant doc before making structural changes. If a decision you're abo
 
 ## Current project state
 
-- Backend: FastAPI (`backend/app/`), layered structure (`routes/`, `services/`, `infra/`, `models/`, `workflows/`).
-- Auth: signup/login working with JWT + bcrypt, MongoDB via Motor.
-- Research flow (in progress): `/research/start` API → pushes job to Redis queue → standalone `worker.py` process picks it up via `BRPOP` → runs a LangGraph graph (`start → research → end`, single node, OpenAI `gpt-4o-mini`) → currently just prints result, no DB persistence yet.
-- Redis and MongoDB run via `docker-compose.yml`.
-- Not yet built: job status tracking/polling, richer multi-node LangGraph flow, persisting results to MongoDB, SSE for progress updates, WebSocket for follow-up chat.
+### Backend (`backend/app/`)
+- **Auth** — signup, login, logout all working. JWT tokens carry a `jti` claim; logout writes `token_blocklist:{jti}` to Redis with TTL = remaining token lifetime. `get_current_user` dependency checks the blocklist on every protected request.
+- **Sessions API** — `POST /sessions`, `GET /sessions`, `GET /sessions/{id}` all built. `GET /sessions/{id}` merges the report from the `reports` collection when status is `complete`.
+- **Workflow API** — `POST /sessions/{id}/run` (enqueues job to Redis, sets status=running) and `GET /sessions/{id}/status` (polling endpoint, reads `workflow_runs` collection).
+- **LangGraph worker** (`worker.py`) — full 10-node graph: `intent_parser → web_searcher / website_scraper (parallel) → data_merger → gap_detector → (conditional) targeted_researcher → insight_extractor → report_compiler → quality_validator → finalizer`. Writes per-node checkpoints to `workflow_runs.nodes[]` in MongoDB. On completion writes `reports` doc and marks session `complete`. Uses DuckDuckGo for web search, `httpx` for scraping, `gpt-4o-mini` for all LLM nodes.
+- **CORS** — allows `http://localhost:5173` (Vite dev server).
+- **Not yet built** — `GET /sessions/{id}/report` (convenience, not needed — report is embedded in `GET /sessions/{id}`), WebSocket chat (`WS /chat/{id}`), `GET /sessions/{id}/messages`.
+
+### Frontend (`frontend/`)
+Stack: React 19 + TypeScript + Vite 8 + Tailwind CSS v4 + react-router-dom v7 + axios + lucide-react.
+
+- **Auth flow** — login/signup/logout wired to real API. Token stored in `localStorage`. Axios interceptor attaches `Authorization: Bearer` header and handles global 401 (clears token + redirect to `/login`). Auth is fully working end-to-end.
+- **App shell** — persistent sidebar (260px desktop, hamburger drawer mobile) + `<Outlet />`. Sidebar shows session history (company_name, colored status dot), "+ New Session", and "Sign out" button pinned to bottom.
+- **Route map**: `/login`, `/signup` (public, no sidebar) | `/`, `/sessions/new`, `/sessions/:sessionId` (protected, inside AppShell).
+- **Session states** — `SessionShellPage` renders 4 states from `session.status`: pending→spinner, running/failed→WorkflowProgressView (node chain), complete→CompleteSessionView (report+chat split).
+- **WorkflowProgressView** — vertical node chain, parallel pair side-by-side, pulsing border on running node.
+- **CompleteSessionView** — desktop: 45/55 split (report left, chat right). Mobile: collapsible report panel above chat.
+- **Currently uses mock data** (`src/mock-data.ts`) — all API calls are mocked. Next step: replace mock data with real React Query hooks calling the backend.
+
+### How to run
+```bash
+# Start infrastructure
+cd backend && docker-compose up -d
+
+# Start FastAPI
+cd backend && uvicorn app.main:app --reload
+
+# Start LangGraph worker (separate terminal)
+cd backend && python worker.py
+
+# Start frontend dev server
+cd frontend && npm run dev
+```
 
 ## How to work with me
 

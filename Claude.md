@@ -48,19 +48,35 @@ See `docs/architecture.md` for the full system design and `docs/requirements.md`
 
 ---
 
-## Current State (as of project start)
+## Current State
 
-- Auth: signup/login working with JWT + bcrypt, MongoDB via Motor.
-- Research flow (in progress): `/research/start` → pushes job to Redis → `worker.py` picks it up via BRPOP → runs a single-node LangGraph graph → prints result (no DB persistence yet).
-- Redis and MongoDB run via `docker-compose.yml` in `backend/`.
+### Backend — built and working
+- **Auth** — `POST /auth/signup`, `POST /auth/login`, `POST /auth/logout`. JWTs carry a `jti`; logout blocklists the token in Redis. `get_current_user` dependency checks the blocklist.
+- **Sessions API** — `POST /sessions`, `GET /sessions`, `GET /sessions/{id}` (embeds report when complete).
+- **Workflow API** — `POST /sessions/{id}/run` (enqueues to Redis, sets status=running), `GET /sessions/{id}/status` (polling, reads `workflow_runs` collection).
+- **LangGraph worker** (`worker.py`) — full 10-node graph with parallel web_searcher/website_scraper, conditional targeted_researcher loop, per-node MongoDB checkpointing, report saved to `reports` collection on completion.
+- **CORS** — `http://localhost:5173` allowed.
 
-**Not yet built:**
-- Job status tracking / SSE polling
-- Multi-node LangGraph workflow (see `docs/architecture.md` §5 for the full graph)
-- Persisting results to MongoDB
-- SSE for workflow progress
-- WebSocket for follow-up chat
-- Frontend (React)
+### Frontend — layout complete, API calls mocked
+- `frontend/` — React 19 + TypeScript + Vite 8 + Tailwind CSS v4. See `docs/fronend_plan.md` for the full design spec.
+- Auth flow wired to real API (login/signup/logout all working).
+- All other data (sessions list, workflow status, messages) still uses mock data in `src/mock-data.ts`.
+
+**Next to build:**
+- Replace mock data with real React Query hooks (sessions, workflow polling, chat).
+- WebSocket chat (`WS /chat/{session_id}?token=<jwt>`).
+- `GET /sessions/{id}/messages` endpoint (backend).
+- PDF export (`@react-pdf/renderer`).
+
+### Running the project
+```bash
+cd backend && docker-compose up -d          # Redis + MongoDB
+cd backend && uvicorn app.main:app --reload  # FastAPI
+cd backend && python worker.py              # LangGraph worker
+cd frontend && npm run dev                  # Vite dev server → http://localhost:5173
+```
+
+Environment variables in `backend/.env` — never commit this file.
 
 ---
 
@@ -74,23 +90,6 @@ Read `docs/architecture.md` before making structural changes. Key decisions:
 4. **LangGraph worker emits SSE events per node** — each node completion emits `{ node, status, message, timestamp }`.
 
 If a decision you're about to make conflicts with something documented in `docs/architecture.md`, point it out rather than silently overriding it.
-
----
-
-## Running the Project
-
-```bash
-# Start Redis + MongoDB
-cd backend && docker-compose up -d
-
-# Start FastAPI
-cd backend && uvicorn app.main:app --reload
-
-# Start worker (separate terminal)
-cd backend && python worker.py
-```
-
-Environment variables live in `backend/.env` — never commit this file.
 
 ---
 

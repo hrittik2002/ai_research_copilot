@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import axios from 'axios';
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -10,7 +11,7 @@ export function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
     if (!email || !password) {
@@ -18,11 +19,19 @@ export function LoginPage() {
       return;
     }
     setLoading(true);
-    // Mock login — sets a fake token so ProtectedRoute passes
-    setTimeout(() => {
-      login('mock_token_abc123');
+    try {
+      await login(email, password);
       navigate('/');
-    }, 800);
+    } catch (err) {
+      if (axios.isAxiosError(err)) {
+        const detail = err.response?.data?.detail;
+        setError(typeof detail === 'string' ? detail : 'Incorrect email or password.');
+      } else {
+        setError('Something went wrong. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -34,7 +43,6 @@ export function LoginPage() {
         className="w-full max-w-sm rounded-xl p-8"
         style={{ backgroundColor: '#2a2a2a', border: '1px solid #3a3a3a' }}
       >
-        {/* Logo / brand */}
         <div className="mb-8 text-center">
           <div
             className="inline-flex items-center justify-center w-10 h-10 rounded-lg mb-3"
@@ -61,11 +69,7 @@ export function LoginPage() {
               onChange={e => setEmail(e.target.value)}
               placeholder="you@company.com"
               className="w-full px-3 py-2.5 rounded-lg text-sm outline-none transition-colors"
-              style={{
-                backgroundColor: '#1a1a1a',
-                border: '1px solid #3a3a3a',
-                color: '#e8e8e6',
-              }}
+              style={{ backgroundColor: '#1a1a1a', border: '1px solid #3a3a3a', color: '#e8e8e6' }}
               onFocus={e => (e.currentTarget.style.borderColor = '#d97757')}
               onBlur={e => (e.currentTarget.style.borderColor = '#3a3a3a')}
             />
@@ -81,11 +85,7 @@ export function LoginPage() {
               onChange={e => setPassword(e.target.value)}
               placeholder="••••••••"
               className="w-full px-3 py-2.5 rounded-lg text-sm outline-none transition-colors"
-              style={{
-                backgroundColor: '#1a1a1a',
-                border: '1px solid #3a3a3a',
-                color: '#e8e8e6',
-              }}
+              style={{ backgroundColor: '#1a1a1a', border: '1px solid #3a3a3a', color: '#e8e8e6' }}
               onFocus={e => (e.currentTarget.style.borderColor = '#d97757')}
               onBlur={e => (e.currentTarget.style.borderColor = '#3a3a3a')}
             />
@@ -101,11 +101,7 @@ export function LoginPage() {
             type="submit"
             disabled={loading}
             className="w-full py-2.5 rounded-lg text-sm font-medium transition-opacity cursor-pointer"
-            style={{
-              backgroundColor: '#d97757',
-              color: '#fff',
-              opacity: loading ? 0.7 : 1,
-            }}
+            style={{ backgroundColor: '#d97757', color: '#fff', opacity: loading ? 0.7 : 1 }}
           >
             {loading ? 'Signing in…' : 'Sign in'}
           </button>

@@ -58,3 +58,8 @@ At first read the project carefully
 read all the files in docs to know about the projecr
 then start with the frontend part
 at first just focus on createing the layout no api integartion in this stage, just show me is everything wokring uiux wise
+
+-- 
+1. cerate a logout api in the backend
+2. follow the code structure 
+3. the integrate the login, signup and logout api in frontend

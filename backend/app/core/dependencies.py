@@ -3,6 +3,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError
 
 from app.core.security import decode_access_token
+from app.infra.redis_client import get_redis
 
 # HTTPBearer extracts the token from "Authorization: Bearer <token>" automatically
 _bearer_scheme = HTTPBearer()
@@ -11,7 +12,7 @@ _bearer_scheme = HTTPBearer()
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
 ) -> str:
-    """Returns the user_id (str) encoded in the JWT. Raises 401 if invalid."""
+    """Returns the user_id (str) encoded in the JWT. Raises 401 if invalid or blocklisted."""
     try:
         payload = decode_access_token(credentials.credentials)
     except JWTError:
@@ -19,6 +20,15 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
         )
+
+    jti: str | None = payload.get("jti")
+    if jti:
+        redis = get_redis()
+        if await redis.exists(f"token_blocklist:{jti}"):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has been revoked",
+            )
 
     user_id: str | None = payload.get("sub")
     if not user_id:

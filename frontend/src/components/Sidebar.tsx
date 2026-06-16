@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Plus } from 'lucide-react';
+import { Plus, LogOut } from 'lucide-react';
 import type { Session } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 
 function statusDotClass(status: Session['status']) {
   switch (status) {
@@ -23,10 +25,22 @@ interface SidebarProps {
 export function Sidebar({ sessions, onClose }: SidebarProps) {
   const { sessionId } = useParams();
   const navigate = useNavigate();
+  const { logout } = useAuth();
+  const [loggingOut, setLoggingOut] = useState(false);
 
   function handleNewSession() {
     onClose?.();
     navigate('/sessions/new');
+  }
+
+  async function handleLogout() {
+    setLoggingOut(true);
+    try {
+      await logout();
+      navigate('/login', { replace: true });
+    } finally {
+      setLoggingOut(false);
+    }
   }
 
   return (
@@ -36,11 +50,7 @@ export function Sidebar({ sessions, onClose }: SidebarProps) {
         <button
           onClick={handleNewSession}
           className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer"
-          style={{
-            color: '#e8e8e6',
-            border: '1px solid #3a3a3a',
-            backgroundColor: 'transparent',
-          }}
+          style={{ color: '#e8e8e6', border: '1px solid #3a3a3a', backgroundColor: 'transparent' }}
           onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#2a2a2a')}
           onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
         >
@@ -59,8 +69,8 @@ export function Sidebar({ sessions, onClose }: SidebarProps) {
         </span>
       </div>
 
-      {/* Session list */}
-      <nav className="flex-1 overflow-y-auto px-2 pb-4 space-y-0.5">
+      {/* Session list — grows to fill remaining space */}
+      <nav className="flex-1 overflow-y-auto px-2 pb-2 space-y-0.5">
         {sessions.length === 0 ? (
           <p className="px-3 py-2 text-sm" style={{ color: '#9b9b97' }}>
             No sessions yet — create one
@@ -87,7 +97,7 @@ export function Sidebar({ sessions, onClose }: SidebarProps) {
                 }}
               >
                 <span
-                  className={`flex-shrink-0 w-2 h-2 rounded-full ${statusDotClass(session.status)}`}
+                  className={`shrink-0 w-2 h-2 rounded-full ${statusDotClass(session.status)}`}
                 />
                 <span className="truncate">{session.company_name}</span>
               </Link>
@@ -95,6 +105,30 @@ export function Sidebar({ sessions, onClose }: SidebarProps) {
           })
         )}
       </nav>
+
+      {/* Logout button — pinned to bottom */}
+      <div className="shrink-0 p-3" style={{ borderTop: '1px solid #3a3a3a' }}>
+        <button
+          onClick={handleLogout}
+          disabled={loggingOut}
+          className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm transition-colors cursor-pointer"
+          style={{
+            color: loggingOut ? '#9b9b97' : '#9b9b97',
+            backgroundColor: 'transparent',
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.backgroundColor = '#2a2a2a';
+            e.currentTarget.style.color = '#f87171';
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.backgroundColor = 'transparent';
+            e.currentTarget.style.color = '#9b9b97';
+          }}
+        >
+          <LogOut size={15} />
+          {loggingOut ? 'Signing out…' : 'Sign out'}
+        </button>
+      </div>
     </div>
   );
 }

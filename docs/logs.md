@@ -5,6 +5,45 @@ Format: `## YYYY-MM-DD HH:MM` followed by a bullet list of what changed and why.
 
 ---
 
+## 2026-06-16 — Auth integration (frontend + backend logout)
+
+**Backend:**
+- `app/core/security.py` — `create_access_token` now injects a `jti` (UUID v4) into every JWT so individual tokens can be revoked without invalidating all tokens.
+- `app/services/auth_service.py` — added `logout_user(token)`: decodes the token, writes `token_blocklist:{jti}` to Redis with TTL = remaining token lifetime. Key auto-expires so no cleanup needed.
+- `app/core/dependencies.py` — `get_current_user` now checks Redis for `token_blocklist:{jti}` before accepting the token. Revoked tokens return `401 Token has been revoked`.
+- `app/routes/auth.py` — added `POST /auth/logout` (requires Bearer token). Calls `logout_user`; idempotent (double-logout returns 200).
+- `app/main.py` — added `CORSMiddleware` allowing `http://localhost:5173` (the Vite dev server origin).
+
+**Frontend:**
+- `src/api/client.ts` — axios instance with `baseURL: http://localhost:8000`. Request interceptor auto-attaches `Authorization: Bearer <token>`. Response interceptor clears token + redirects to `/login` on any `401`.
+- `src/api/auth.ts` — typed wrappers: `login()`, `signup()`, `logout()`.
+- `src/contexts/AuthContext.tsx` — rewrote to call real API. `login()` stores the returned JWT; `logout()` calls the API first, always clears localStorage in `finally` so local state clears even if the network call fails.
+- `src/pages/LoginPage.tsx` — replaced mock timeout with real `login()` call; shows backend error detail verbatim on failure.
+- `src/pages/SignupPage.tsx` — replaced mock timeout with real `signup()` call; redirects to `/login` on success.
+- `src/components/Sidebar.tsx` — added "Sign out" button pinned to the bottom of the sidebar. Calls `logout()` and navigates to `/login`.
+
+---
+
+## 2026-06-16 — Frontend scaffold (layout-only, mock data)
+
+- Scaffolded `frontend/` — React 19 + TypeScript + Vite 8 + Tailwind CSS v4 (via `@tailwindcss/vite` plugin — no `tailwind.config.js` needed in v4). Added `react-router-dom` v7, `@tanstack/react-query` v5, `lucide-react`, `axios`.
+- `src/index.css` — Tailwind v4 `@theme` block with all design tokens from `fronend_plan.md` (bg-primary, bg-sidebar, bg-elevated, border, text-primary, text-secondary, accent, success, error).
+- `src/types.ts` — TypeScript types for `Session`, `ReportContent`, `WorkflowNode`, `WorkflowStatus`, `Message` matching the API contract exactly.
+- `src/mock-data.ts` — mock sessions (Acme Corp=complete, Xempla=running, Flytbase=failed), mock workflow node statuses, mock chat messages. Used in place of real API for layout validation.
+- `src/contexts/AuthContext.tsx` — token stored in `localStorage`, exposes `login`, `signup`, `logout`.
+- `src/components/ProtectedRoute.tsx` — redirects to `/login` if no token.
+- `src/components/AppShell.tsx` — persistent sidebar (260px, desktop) + `<Outlet />`. Mobile: hamburger toggle opens sidebar as overlay drawer. Uses `100dvh` for correct mobile keyboard handling.
+- `src/components/Sidebar.tsx` — "+ New Session" button, session history list (company_name as label, colored status dot per session status), Sign out button.
+- `src/components/WorkflowProgressView.tsx` — vertical node chain. `web_searcher` + `website_scraper` rendered side-by-side (parallel). Animated pulsing border for `running` node. Checkmark/X icons for complete/failed.
+- `src/components/CompleteSessionView.tsx` — desktop: 45/55 split (report panel left, chat panel right). Mobile (<1024px): collapsible "View Report" panel above chat. Chat panel has auto-growing textarea, token-streaming simulation, typing indicator (3 bouncing dots).
+- `src/pages/LoginPage.tsx`, `SignupPage.tsx` — centered card, no sidebar, dark theme.
+- `src/pages/CreateSessionPage.tsx` — 3-field form (company_name, company_website, research_objective). Submit disabled until all fields non-empty.
+- `src/pages/SessionShellPage.tsx` — reads `session.status` and renders: pending→spinner, running/failed→WorkflowProgressView, complete→CompleteSessionView.
+- `src/pages/RootRedirect.tsx` — if sessions exist, redirect to most recent; else redirect to `/sessions/new`.
+- Route map: `/login`, `/signup` (public, no shell) | `/`, `/sessions/new`, `/sessions/:sessionId` (protected, inside AppShell).
+
+---
+
 ## 2026-06-16 — LangGraph workflow + Worker checkpointing
 
 - Rewrote `backend/app/workflows/research_graph.py` — full 10-node sequential LangGraph flow:
