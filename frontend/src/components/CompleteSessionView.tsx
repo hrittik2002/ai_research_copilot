@@ -159,7 +159,6 @@ function ChatPanel({ session }: ChatPanelProps) {
   const { data: history = [], isSuccess: historyLoaded } = useQuery<Message[]>({
     queryKey: ['messages', session.session_id],
     queryFn: () => fetchMessages(session.session_id),
-    staleTime: Infinity, // history is append-only; WS keeps it live
   });
 
   const { messages, isStreaming, error, sendMessage } = useChat(session.session_id, history, historyLoaded);

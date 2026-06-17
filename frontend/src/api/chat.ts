@@ -38,15 +38,16 @@ export function useChat(
     setError(null);
   }, [sessionId]);
 
-  // Hydrate once from the REST history after React Query resolves
+  // Hydrate once from the REST history after React Query resolves.
+  // sessionId is included so cached data hydrates immediately when switching sessions —
+  // without it, historyLoaded stays true across navigation and the effect never re-fires.
   useEffect(() => {
     if (historyLoaded && !hydratedRef.current) {
       hydratedRef.current = true;
       setMessages(initialMessages);
     }
-  // initialMessages reference changes when the query resolves; that's the trigger we want
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [historyLoaded]);
+  }, [historyLoaded, sessionId]);
 
   useEffect(() => {
     const token = localStorage.getItem('access_token');
