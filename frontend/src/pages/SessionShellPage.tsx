@@ -1,14 +1,56 @@
+import { useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader } from 'lucide-react';
-import { MOCK_SESSIONS, MOCK_WORKFLOW_STATUS } from '../mock-data';
+import { getSession, getWorkflowStatus } from '../api/sessions';
 import { WorkflowProgressView } from '../components/WorkflowProgressView';
 import { CompleteSessionView } from '../components/CompleteSessionView';
+import type { WorkflowStatus } from '../types';
 
 export function SessionShellPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
-  const session = MOCK_SESSIONS.find(s => s.session_id === sessionId);
+  const queryClient = useQueryClient();
 
-  if (!session) {
+  // Fetch the session — includes the report once status === 'complete'
+  const {
+    data: session,
+    isLoading,
+    error: sessionError,
+  } = useQuery({
+    queryKey: ['session', sessionId],
+    queryFn: () => getSession(sessionId!),
+    enabled: !!sessionId,
+  });
+
+  const isTerminal = session?.status === 'complete' || session?.status === 'failed';
+
+  // Poll GET /sessions/{id}/status every 5s while the workflow is active
+  const { data: workflowStatus } = useQuery({
+    queryKey: ['workflow-status', sessionId],
+    queryFn: () => getWorkflowStatus(sessionId!),
+    enabled: !!sessionId && !!session && !isTerminal,
+    refetchInterval: 5000,
+  });
+
+  // When the poll detects a terminal state, re-fetch the session so the report
+  // (or error) is available and polling stops (isTerminal flips to true)
+  useEffect(() => {
+    if (workflowStatus?.status === 'complete' || workflowStatus?.status === 'failed') {
+      queryClient.invalidateQueries({ queryKey: ['session', sessionId] });
+      // Also refresh the sidebar status dot
+      queryClient.invalidateQueries({ queryKey: ['sessions'] });
+    }
+  }, [workflowStatus?.status, sessionId, queryClient]);
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <Loader size={18} className="animate-spin" style={{ color: '#d97757' }} />
+      </div>
+    );
+  }
+
+  if (sessionError || !session) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <p className="text-sm" style={{ color: '#9b9b97' }}>
@@ -18,53 +60,27 @@ export function SessionShellPage() {
     );
   }
 
-  if (session.status === 'pending') {
-    return (
-      <div className="flex-1 flex items-center justify-center gap-3">
-        <Loader size={18} className="animate-spin" style={{ color: '#d97757' }} />
-        <p className="text-sm" style={{ color: '#9b9b97' }}>
-          Starting research…
-        </p>
-      </div>
-    );
-  }
-
   if (session.status === 'complete') {
     return <CompleteSessionView session={session} />;
   }
 
-  // running or failed — show workflow progress view
-  // For 'failed' session (sess_003), fabricate a failed workflow status
-  const workflowStatus =
-    session.session_id === MOCK_WORKFLOW_STATUS.session_id
-      ? MOCK_WORKFLOW_STATUS
-      : {
-          session_id: session.session_id,
-          status: session.status,
-          started_at: session.created_at,
-          completed_at: session.updated_at,
-          error_message:
-            session.status === 'failed'
-              ? 'The website scraper failed to retrieve content. The website may be blocking automated access.'
-              : null,
-          nodes: [
-            { node_name: 'intent_parser', status: 'complete' as const, started_at: session.created_at, output: null, error: null },
-            { node_name: 'web_searcher', status: 'complete' as const, started_at: session.created_at, output: null, error: null },
-            { node_name: 'website_scraper', status: 'failed' as const, started_at: session.created_at, output: null, error: 'Request timed out' },
-            { node_name: 'data_merger', status: 'pending' as const, started_at: null, output: null, error: null },
-            { node_name: 'gap_detector', status: 'pending' as const, started_at: null, output: null, error: null },
-            { node_name: 'insight_extractor', status: 'pending' as const, started_at: null, output: null, error: null },
-            { node_name: 'report_compiler', status: 'pending' as const, started_at: null, output: null, error: null },
-            { node_name: 'quality_validator', status: 'pending' as const, started_at: null, output: null, error: null },
-            { node_name: 'finalizer', status: 'pending' as const, started_at: null, output: null, error: null },
-          ],
-        };
+  // For pending/running/failed — show the workflow progress view.
+  // Use polled data when available; fall back to a skeleton with no nodes
+  // (visible only for the instant before the first poll returns).
+  const liveStatus: WorkflowStatus = workflowStatus ?? {
+    session_id: sessionId!,
+    status: session.status,
+    started_at: session.created_at,
+    completed_at: null,
+    error_message: null,
+    nodes: [],
+  };
 
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
       {/* Session header */}
       <div
-        className="flex-shrink-0 px-5 py-3 flex items-center gap-3"
+        className="shrink-0 px-5 py-3 flex items-center gap-3"
         style={{ borderBottom: '1px solid #3a3a3a' }}
       >
         <div>
@@ -87,13 +103,13 @@ export function SessionShellPage() {
       </div>
 
       <WorkflowProgressView
-        workflowStatus={workflowStatus}
-        errorMessage={workflowStatus.error_message}
+        workflowStatus={liveStatus}
+        errorMessage={liveStatus.error_message}
       />
 
-      {/* Disabled input bar for running/failed states */}
+      {/* Disabled input bar — active only once research is complete */}
       <div
-        className="flex-shrink-0 px-4 py-3 flex gap-2"
+        className="shrink-0 px-4 py-3 flex gap-2"
         style={{ borderTop: '1px solid #3a3a3a' }}
       >
         <input

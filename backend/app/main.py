@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.routes import auth, research, sessions
+from app.ws import chat as chat_ws
 from app.infra.mongodb import connect_to_mongo, close_mongo_connection
 
 
@@ -27,6 +28,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(research.router)
 app.include_router(sessions.router)
+app.include_router(chat_ws.router)
 
 
 @app.get("/health")

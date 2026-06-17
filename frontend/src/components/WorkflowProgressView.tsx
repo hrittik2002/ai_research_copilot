@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import type { WorkflowStatus } from '../types';
 import { CheckCircle, XCircle, Circle, Loader } from 'lucide-react';
 
@@ -62,6 +63,7 @@ interface WorkflowProgressViewProps {
 }
 
 export function WorkflowProgressView({ workflowStatus, errorMessage }: WorkflowProgressViewProps) {
+  const navigate = useNavigate();
   const nodes = workflowStatus.nodes;
 
   // Group into visual rows: parallel pair is one row, rest are individual rows
@@ -165,7 +167,8 @@ export function WorkflowProgressView({ workflowStatus, errorMessage }: WorkflowP
 
         {workflowStatus.status === 'failed' && (
           <button
-            className="mt-4 w-full py-2.5 rounded-lg text-sm font-medium"
+            onClick={() => navigate('/sessions/new')}
+            className="mt-4 w-full py-2.5 rounded-lg text-sm font-medium cursor-pointer"
             style={{ backgroundColor: '#3a3a3a', color: '#e8e8e6' }}
           >
             Start New Session

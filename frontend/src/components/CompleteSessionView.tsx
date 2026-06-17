@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Send, Download, ChevronDown, ChevronUp } from 'lucide-react';
 import type { Session, Message } from '../types';
-import { MOCK_MESSAGES } from '../mock-data';
+import { fetchMessages, useChat } from '../api/chat';
 
 // --- Report Panel ---
 
@@ -148,40 +149,27 @@ interface ChatPanelProps {
   session: Session;
 }
 
-function ChatPanel({ session: _session }: ChatPanelProps) {
-  const [messages, setMessages] = useState<Message[]>(MOCK_MESSAGES);
+function ChatPanel({ session }: ChatPanelProps) {
   const [input, setInput] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  const { data: history = [] } = useQuery<Message[]>({
+    queryKey: ['messages', session.session_id],
+    queryFn: () => fetchMessages(session.session_id),
+    staleTime: Infinity, // history is append-only; WS keeps it live
+  });
+
+  const { messages, isStreaming, error, sendMessage } = useChat(session.session_id, history);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isTyping]);
+  }, [messages, isStreaming]);
 
   function handleSend() {
     const text = input.trim();
     if (!text) return;
-    const userMsg: Message = {
-      message_id: `msg_${Date.now()}`,
-      role: 'user',
-      content: text,
-      created_at: new Date().toISOString(),
-    };
-    setMessages(prev => [...prev, userMsg]);
     setInput('');
-    setIsTyping(true);
-    // Mock streaming: show typing indicator then add fake reply
-    setTimeout(() => {
-      const assistantMsg: Message = {
-        message_id: `msg_${Date.now() + 1}`,
-        role: 'assistant',
-        content:
-          "Great question! Based on the research report, I can provide more context on that. The data collected suggests there are several key factors to consider here. Let me elaborate on the most relevant points from the briefing.",
-        created_at: new Date().toISOString(),
-      };
-      setMessages(prev => [...prev, assistantMsg]);
-      setIsTyping(false);
-    }, 1200);
+    sendMessage(text);
   }
 
   return (
@@ -201,7 +189,12 @@ function ChatPanel({ session: _session }: ChatPanelProps) {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-5 py-4">
-        {messages.length === 0 && (
+        {error && (
+          <div className="mb-4 px-3 py-2 rounded-lg text-xs" style={{ backgroundColor: '#3a1a1a', color: '#f87171' }}>
+            {error}
+          </div>
+        )}
+        {messages.length === 0 && !error && (
           <div className="flex items-center justify-center h-full">
             <p className="text-sm" style={{ color: '#9b9b97' }}>
               No messages yet — ask something about the report
@@ -211,7 +204,8 @@ function ChatPanel({ session: _session }: ChatPanelProps) {
         {messages.map(m => (
           <MessageBubble key={m.message_id} message={m} />
         ))}
-        {isTyping && (
+        {/* Typing indicator shown only while waiting for the first token */}
+        {isStreaming && messages[messages.length - 1]?.role !== 'assistant' && (
           <div className="flex gap-3 mb-4">
             <div
               className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
@@ -269,11 +263,11 @@ function ChatPanel({ session: _session }: ChatPanelProps) {
         />
         <button
           onClick={handleSend}
-          disabled={!input.trim() || isTyping}
+          disabled={!input.trim() || isStreaming}
           className="flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center transition-all"
           style={{
-            backgroundColor: input.trim() && !isTyping ? '#d97757' : '#3a3a3a',
-            color: input.trim() && !isTyping ? '#fff' : '#9b9b97',
+            backgroundColor: input.trim() && !isStreaming ? '#d97757' : '#3a3a3a',
+            color: input.trim() && !isStreaming ? '#fff' : '#9b9b97',
           }}
         >
           <Send size={15} />

@@ -149,6 +149,9 @@ async def process_job(job_data: dict) -> None:
                 if node_name.startswith("__"):
                     continue  # skip LangGraph internal events (e.g. __end__)
 
+                # LangGraph yields None for nodes that return {} (no state changes)
+                if state_update is None:
+                    state_update = {}
                 accumulated_state.update(state_update)
                 await _record_node_complete(session_id, node_name, state_update)
                 print(f"[worker] ✓ {node_name} — session {session_id}")

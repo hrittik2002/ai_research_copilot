@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, status
 
 from app.core.dependencies import get_current_user
-from app.models.session import CreateSessionRequest, SessionResponse, SessionListItemResponse
+from app.models.chat import MessageResponse
+from app.models.session import CreateSessionRequest, SessionResponse, SessionListItemResponse, ReportResponse
 from app.models.workflow import StartWorkflowResponse, WorkflowStatusResponse
-from app.services import session_service, workflow_service
+from app.services import chat_service, session_service, workflow_service
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -43,3 +44,19 @@ async def get_workflow_status(
     user_id: str = Depends(get_current_user),
 ):
     return await workflow_service.get_workflow_status(session_id, user_id)
+
+
+@router.get("/{session_id}/report", response_model=ReportResponse)
+async def get_report(
+    session_id: str,
+    user_id: str = Depends(get_current_user),
+):
+    return await session_service.get_report(session_id, user_id)
+
+
+@router.get("/{session_id}/messages", response_model=list[MessageResponse])
+async def get_messages(
+    session_id: str,
+    user_id: str = Depends(get_current_user),
+):
+    return await chat_service.get_messages(session_id, user_id)

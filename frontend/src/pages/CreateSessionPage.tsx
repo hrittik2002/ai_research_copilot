@@ -1,24 +1,50 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { ArrowRight } from 'lucide-react';
+import axios from 'axios';
+import { createSession, runWorkflow } from '../api/sessions';
 
 export function CreateSessionPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [companyName, setCompanyName] = useState('');
   const [companyWebsite, setCompanyWebsite] = useState('');
   const [researchObjective, setResearchObjective] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const canSubmit = companyName.trim() && companyWebsite.trim() && researchObjective.trim();
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmit) return;
+    setError('');
     setLoading(true);
-    // Mock: navigate to a running session after brief delay
-    setTimeout(() => {
-      navigate('/sessions/sess_002');
-    }, 600);
+    try {
+      // Step 1: create the session record
+      const session = await createSession({
+        company_name: companyName.trim(),
+        company_website: companyWebsite.trim(),
+        research_objective: researchObjective.trim(),
+      });
+
+      // Step 2: kick off the workflow
+      await runWorkflow(session.session_id);
+
+      // Invalidate the sidebar list so the new session appears immediately
+      await queryClient.invalidateQueries({ queryKey: ['sessions'] });
+
+      navigate(`/sessions/${session.session_id}`);
+    } catch (err) {
+      if (axios.isAxiosError(err)) {
+        const detail = err.response?.data?.detail;
+        setError(typeof detail === 'string' ? detail : 'Failed to start research. Please try again.');
+      } else {
+        setError('Something went wrong. Please try again.');
+      }
+      setLoading(false);
+    }
   }
 
   const inputStyle = {
@@ -88,6 +114,12 @@ export function CreateSessionPage() {
             />
           </div>
 
+          {error && (
+            <p className="text-sm" style={{ color: '#f87171' }}>
+              {error}
+            </p>
+          )}
+
           <button
             type="submit"
             disabled={!canSubmit || loading}
@@ -101,7 +133,7 @@ export function CreateSessionPage() {
             {loading ? (
               <>
                 <span
-                  className="w-4 h-4 rounded-full border-2 border-t-transparent animate-spin"
+                  className="w-4 h-4 rounded-full border-2 animate-spin"
                   style={{ borderColor: '#fff', borderTopColor: 'transparent' }}
                 />
                 Starting…

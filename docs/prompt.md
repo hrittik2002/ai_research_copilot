@@ -63,3 +63,54 @@ at first just focus on createing the layout no api integartion in this stage, ju
 1. cerate a logout api in the backend
 2. follow the code structure 
 3. the integrate the login, signup and logout api in frontend
+
+---
+
+At first read the /docs of the project carefully to get the full context then
+lets create the Create a new workflow part:
+1. user will click the create a new session 
+2. Then user will get into the create a new session page then user will fill the required fileds then user will click start research button
+3. Then we need to at first create a new research session, for this integrate with POST /sessions this api
+4. Once the session is created 
+   1. In the frontend move to the /sessions/{session_id} page
+   2. and start the workflow flow by calling this api POST /sessions/{session_id}/run
+5. if you get success message from this api means workflow has been started or show error message in frontend
+6. Then poll this api : GET /sessions/{session_id}/status every 5sec to get the current workflow state, as per it update the the ui like Intent parser, Web Searcger the workflow of ui. basically the WorkflowProgressView
+7. if this is done then cearet the GET /sessions/{session_id}/report API in backend to get the report and then integrate this api with frontend, once we get the report in fronetnd show the CompleteSessionView
+
+---
+
+Now report generation part is working now our focus is to create a chat with report
+it will be websocket based
+check the flow
+Client                FastAPI (WS route)         ChatService            OpenAI
+  │                         │                          │                  │
+  │──connect ws+token───────▶                          │                  │
+  │                         │──verify JWT──────────────▶                  │
+  │                         │──load report from Mongo──▶                  │
+  │◀──connection accepted───│                          │                  │
+  │                         │                          │                  │
+  │──{"message": "..."}────▶                          │                  │
+  │                         │──save user msg to Mongo──▶                  │
+  │                         │──call chat_service.stream_reply()──────────▶│
+  │                         │                          │──stream chunks──▶│
+  │◀──token──token──token───│◀─────────────────────────│◀─────────────────│
+  │                         │──save assistant msg──────▶                  │
+  │◀──{"done": true}────────│                          │                  │
+
+
+check @docs/db_design2.png to get the new db design
+
+  app/
+  ws/
+    chat.py              ← the WebSocket route itself (FastAPI endpoint)
+  services/
+    chat_service.py       ← LLM logic lives here — NOT in the route
+
+check @docs/api_design.md for websocket based api
+at first create the backend 
+then integarte with frontend
+this is talk with the report
+report data is in db, for a specific session
+
+  

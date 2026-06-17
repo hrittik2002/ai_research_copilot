@@ -42,3 +42,9 @@ class SessionListItemResponse(BaseModel):
     status: str
     created_at: datetime
     updated_at: datetime
+
+
+class ReportResponse(BaseModel):
+    session_id: str
+    generated_at: datetime
+    content: ReportContent

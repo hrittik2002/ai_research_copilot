@@ -1,18 +1,22 @@
 import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { Sidebar } from './Sidebar';
-import { MOCK_SESSIONS } from '../mock-data';
+import { getSessions } from '../api/sessions';
 
 export function AppShell() {
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const sessions = MOCK_SESSIONS;
+  const { data: sessions = [] } = useQuery({
+    queryKey: ['sessions'],
+    queryFn: getSessions,
+  });
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ backgroundColor: '#1a1a1a' }}>
       {/* Desktop sidebar — always visible ≥1024px */}
       <aside
-        className="hidden lg:flex flex-col flex-shrink-0"
+        className="hidden lg:flex flex-col shrink-0"
         style={{ width: '260px', borderRight: '1px solid #3a3a3a' }}
       >
         <Sidebar sessions={sessions} />
@@ -52,7 +56,7 @@ export function AppShell() {
             style={{ width: '260px', borderRight: '1px solid #3a3a3a' }}
           >
             <div
-              className="flex items-center justify-between px-4 py-3 flex-shrink-0"
+              className="flex items-center justify-between px-4 py-3 shrink-0"
               style={{ borderBottom: '1px solid #3a3a3a', backgroundColor: '#171717' }}
             >
               <span className="text-sm font-medium" style={{ color: '#e8e8e6' }}>
