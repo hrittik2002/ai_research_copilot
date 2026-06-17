@@ -4,6 +4,12 @@ Researches a company and generates a structured sales briefing using a multi-nod
 
 ---
 
+## Demo
+
+[Watch the demo on Loom](https://www.loom.com/share/3f833a95a148493ebaed5eebe5c8c234)
+
+---
+
 ## Docs
 
 | Document | What's in it |
