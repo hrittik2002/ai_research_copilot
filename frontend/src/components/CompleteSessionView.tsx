@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Send, Download, ChevronDown, ChevronUp } from 'lucide-react';
 import type { Session, Message } from '../types';
 import { fetchMessages, useChat } from '../api/chat';
+import { downloadReportPdf } from '../utils/generatePdf';
 
 // --- Report Panel ---
 
@@ -69,11 +70,13 @@ function ReportPanel({ session }: ReportPanelProps) {
           </p>
         </div>
         <button
+          onClick={() => downloadReportPdf(session)}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
           style={{
             backgroundColor: '#2a2a2a',
             border: '1px solid #3a3a3a',
             color: '#e8e8e6',
+            cursor: 'pointer',
           }}
           onMouseEnter={e => (e.currentTarget.style.borderColor = '#d97757')}
           onMouseLeave={e => (e.currentTarget.style.borderColor = '#3a3a3a')}
@@ -153,13 +156,13 @@ function ChatPanel({ session }: ChatPanelProps) {
   const [input, setInput] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const { data: history = [] } = useQuery<Message[]>({
+  const { data: history = [], isSuccess: historyLoaded } = useQuery<Message[]>({
     queryKey: ['messages', session.session_id],
     queryFn: () => fetchMessages(session.session_id),
     staleTime: Infinity, // history is append-only; WS keeps it live
   });
 
-  const { messages, isStreaming, error, sendMessage } = useChat(session.session_id, history);
+  const { messages, isStreaming, error, sendMessage } = useChat(session.session_id, history, historyLoaded);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });

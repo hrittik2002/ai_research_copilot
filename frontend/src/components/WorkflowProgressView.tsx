@@ -91,8 +91,11 @@ export function WorkflowProgressView({ workflowStatus, errorMessage }: WorkflowP
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 overflow-y-auto">
       <div className="w-full max-w-xs">
-        <h3 className="text-sm font-medium mb-6 text-center" style={{ color: '#9b9b97' }}>
-          Research in progress…
+        <h3
+          className="text-sm font-medium mb-6 text-center"
+          style={{ color: workflowStatus.status === 'failed' ? '#f87171' : '#9b9b97' }}
+        >
+          {workflowStatus.status === 'failed' ? 'Research failed' : 'Research in progress…'}
         </h3>
 
         <div className="flex flex-col items-center gap-0">

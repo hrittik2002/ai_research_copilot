@@ -63,6 +63,14 @@ async def start_workflow(session_id: str, user_id: str) -> dict:
     return {"session_id": session_id, "status": "running", "message": "Workflow started"}
 
 
+async def get_workflow_detail(session_id: str, user_id: str) -> dict:
+    """
+    Full WorkflowRun record — same data as get_workflow_status but exposed
+    on a stable /workflow path for debugging and post-run inspection.
+    """
+    return await get_workflow_status(session_id, user_id)
+
+
 async def get_workflow_status(session_id: str, user_id: str) -> dict:
     db = get_database()
 

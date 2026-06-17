@@ -16,20 +16,37 @@ interface UseChatResult {
   sendMessage: (text: string) => void;
 }
 
-export function useChat(sessionId: string, initialMessages: Message[] = []): UseChatResult {
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
+export function useChat(
+  sessionId: string,
+  initialMessages: Message[] = [],
+  historyLoaded = false,
+): UseChatResult {
+  const [messages, setMessages] = useState<Message[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   // Tracks the temp id of the assistant message being streamed so we can append to it
   const streamingIdRef = useRef<string>('');
+  // Prevents re-hydrating mid-session when parent re-renders
+  const hydratedRef = useRef(false);
 
+  // Reset when navigating to a different session
   useEffect(() => {
-    setMessages(initialMessages);
-  // Only reset when the session changes, not on every render of initialMessages
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    hydratedRef.current = false;
+    setMessages([]);
+    setError(null);
   }, [sessionId]);
+
+  // Hydrate once from the REST history after React Query resolves
+  useEffect(() => {
+    if (historyLoaded && !hydratedRef.current) {
+      hydratedRef.current = true;
+      setMessages(initialMessages);
+    }
+  // initialMessages reference changes when the query resolves; that's the trigger we want
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [historyLoaded]);
 
   useEffect(() => {
     const token = localStorage.getItem('access_token');
@@ -37,6 +54,10 @@ export function useChat(sessionId: string, initialMessages: Message[] = []): Use
 
     const ws = new WebSocket(`${WS_BASE}/chat/${sessionId}?token=${encodeURIComponent(token)}`);
     wsRef.current = ws;
+
+    // Captured by closure — true when WE closed the socket (unmount / session change).
+    // Prevents onclose from showing a spurious error when the close is intentional.
+    let closing = false;
 
     ws.onmessage = (event: MessageEvent<string>) => {
       const text = event.data;
@@ -87,12 +108,28 @@ export function useChat(sessionId: string, initialMessages: Message[] = []): Use
       });
     };
 
+    // onerror fires before onclose and doesn't carry a close code — wait for onclose
     ws.onerror = () => {
-      setError('WebSocket connection error');
       setIsStreaming(false);
     };
 
+    ws.onclose = (event) => {
+      setIsStreaming(false);
+      // Ignore closes we triggered ourselves (unmount / session navigation)
+      if (closing) return;
+      if (event.code === 4001) {
+        setError('Session expired — please log in again');
+      } else if (event.code === 4003) {
+        setError('Session not found');
+      } else if (event.code === 4004) {
+        setError('Research not complete yet — finish the workflow first');
+      } else if (event.code !== 1000 && event.code !== 1001) {
+        setError('Connection lost — please refresh the page');
+      }
+    };
+
     return () => {
+      closing = true;
       ws.close();
       wsRef.current = null;
     };

@@ -60,3 +60,11 @@ async def get_messages(
     user_id: str = Depends(get_current_user),
 ):
     return await chat_service.get_messages(session_id, user_id)
+
+
+@router.get("/{session_id}/workflow", response_model=WorkflowStatusResponse)
+async def get_workflow_detail(
+    session_id: str,
+    user_id: str = Depends(get_current_user),
+):
+    return await workflow_service.get_workflow_detail(session_id, user_id)

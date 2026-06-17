@@ -113,4 +113,40 @@ then integarte with frontend
 this is talk with the report
 report data is in db, for a specific session
 
-  
+--- 
+At first get the full context read all the files in docs
+The chat part is working perfectly. Few things need to be fixed
+1. Once I referesh the page i cant see the old chats of the session, I think any api integration is mission for getting old chats, check @docs/api_design.md for checking the api's. If the api is not cerate then create and then integarte. 
+2. In frontend although the chat is working perfectly we are getting response, but I can see a error on top of the chat box `Websoket connection error` remove it
+3. Check @api_design if there is any api left to integrate or to be created do it then.
+---
+Good i can see old chats now, Things to fix now
+1. In the frontend there is a download pdf button but it dont work, So make this button work, write the pdf creation logic in frontend, already you are getting all the report data in frontned use that to create a report in pdf format, and make sure user can downlaod it. There are many libarires like react-pdf use the best that suit. 
+2. In the top of chat box `Connection lost- please refresh the page` error is comming although it is working perfectly dont show any error there
+3. For faild session, it is showing research in progress instead show error message like research faild 
+---
+read @docs/architecture.md and @docs/requirements.md
+## Additional Required Documents
+
+1. `README.md`
+2. `architecture.md`
+3. `engineering-decisions.md`
+4. `product-improvements.md`
+I need to create this docs 
+one by one 
+read old chats for context, I have cerated the application
+
+### `engineering-decisions.md` Must Cover
+
+1. 3 major engineering decisions
+2. Alternatives considered
+3. Tradeoffs made
+4. Top technical debt items
+5. Biggest technical risk
+6. What you would improve with 2 additional weeks
+Lets cover this engineering-desisions
+
+Currently we are using pulling when the workflow is running, the worker is updating the db and we are pulling directly from the db, The best alternatives are instead of using pulling we can use SSE here and instead of pulling from db we can create the arch like there will be redis and user will fetch from redis instead of db
+like this can you add 2 more and create engineering decesions file
+
+Show less

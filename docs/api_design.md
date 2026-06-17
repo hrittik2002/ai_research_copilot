@@ -71,7 +71,7 @@ Authenticate and receive a JWT access token.
 > A Session is the top-level entity: it holds the research inputs, current status, and links to the report and workflow run.
 > The DB design shows `Session` has: `company_name`, `company_website`, `research_objective`, `status`, `created_at`, `updated_at`.
 
-### POST /sessions 🔲
+### POST /sessions ✅
 Create a new research session. Does **not** start the workflow — session is created in `pending` state. The client calls `POST /sessions/{id}/run` next to trigger research.
 
 **Auth required**
@@ -103,7 +103,7 @@ Create a new research session. Does **not** start the workflow — session is cr
 
 ---
 
-### GET /sessions 🔲
+### GET /sessions ✅
 List all sessions for the authenticated user, newest first.
 
 **Auth required**
@@ -127,7 +127,7 @@ List all sessions for the authenticated user, newest first.
 
 ---
 
-### GET /sessions/{session_id} 🔲
+### GET /sessions/{session_id} ✅
 Get a single session. If the session is complete, includes the report inline (fetched from the `reports` collection and merged into the response — stored separately in DB but returned together for convenience).
 
 **Auth required**
@@ -166,7 +166,7 @@ Get a single session. If the session is complete, includes the report inline (fe
 
 ## Workflow
 
-### POST /sessions/{session_id}/run 🔲
+### POST /sessions/{session_id}/run ✅
 Trigger the LangGraph research workflow for an existing session. Pushes a job to the Redis queue and immediately returns. Session status transitions to `running`.
 
 **Auth required**
@@ -186,7 +186,7 @@ Trigger the LangGraph research workflow for an existing session. Pushes a job to
 
 ---
 
-### GET /sessions/{session_id}/status 🔲
+### GET /sessions/{session_id}/status ✅
 **Polling endpoint** — client calls this every 2–3 seconds to get the current workflow state. Reads directly from the `workflow_runs` collection in MongoDB. No streaming, no open connection.
 
 When `status` is `complete` or `failed`, the client stops polling and (if complete) opens the WebSocket for chat.
@@ -233,7 +233,7 @@ When `status` is `complete` or `failed`, the client stops polling and (if comple
 
 ## Report
 
-### GET /sessions/{session_id}/report 🔲
+### GET /sessions/{session_id}/report ✅
 Fetch the completed report for a session. Convenience endpoint — same report is also embedded in `GET /sessions/{session_id}` when complete.
 
 **Auth required**
@@ -271,7 +271,7 @@ Fetch the completed report for a session. Convenience endpoint — same report i
 
 ## Chat
 
-### WS /chat/{session_id} 🔲
+### WS /chat/{session_id} ✅
 **WebSocket** — bidirectional chat. The report is loaded as system context on connect. The LLM streams its reply token-by-token back to the client. All messages are persisted to the `messages` collection in MongoDB.
 
 **Auth required** — pass the JWT as a query param on connect: `WS /chat/{session_id}?token=<jwt>` (WebSocket upgrades cannot carry custom headers in the browser).
@@ -309,7 +309,7 @@ Their
 
 ---
 
-### GET /sessions/{session_id}/messages 🔲
+### GET /sessions/{session_id}/messages ✅
 Fetch full chat history for a session, ordered oldest first.
 
 **Auth required**
@@ -336,7 +336,7 @@ Fetch full chat history for a session, ordered oldest first.
 
 ## Workflow Run Detail (internal / optional)
 
-### GET /sessions/{session_id}/workflow 🔲
+### GET /sessions/{session_id}/workflow ✅
 Fetch the WorkflowRun record — useful for debugging and showing which nodes ran, their outputs, and errors. This maps to the `WorkflowRun` entity in the DB.
 
 **Auth required**
@@ -385,15 +385,15 @@ Fetch the WorkflowRun record — useful for debugging and showing which nodes ra
 |---|--------|------|--------|------|
 | 1 | POST | `/auth/signup` | ✅ Done | No |
 | 2 | POST | `/auth/login` | ✅ Done | No |
-| 3 | POST | `/sessions` | 🔲 Build | Yes |
-| 4 | GET | `/sessions` | 🔲 Build | Yes |
-| 5 | GET | `/sessions/{session_id}` | 🔲 Build | Yes |
-| 6 | POST | `/sessions/{session_id}/run` | 🔲 Build | Yes |
-| 7 | GET | `/sessions/{session_id}/status` | 🔲 Build (polling) | Yes |
-| 8 | GET | `/sessions/{session_id}/report` | 🔲 Build | Yes |
-| 9 | WS | `/chat/{session_id}` | 🔲 Build | Yes (query param) |
-| 10 | GET | `/sessions/{session_id}/messages` | 🔲 Build | Yes |
-| 11 | GET | `/sessions/{session_id}/workflow` | 🔲 Build | Yes |
+| 3 | POST | `/sessions` | ✅ Done | Yes |
+| 4 | GET | `/sessions` | ✅ Done | Yes |
+| 5 | GET | `/sessions/{session_id}` | ✅ Done | Yes |
+| 6 | POST | `/sessions/{session_id}/run` | ✅ Done | Yes |
+| 7 | GET | `/sessions/{session_id}/status` | ✅ Done (polling) | Yes |
+| 8 | GET | `/sessions/{session_id}/report` | ✅ Done | Yes |
+| 9 | WS | `/chat/{session_id}` | ✅ Done | Yes (query param) |
+| 10 | GET | `/sessions/{session_id}/messages` | ✅ Done | Yes |
+| 11 | GET | `/sessions/{session_id}/workflow` | ✅ Done | Yes |
 | 12 | GET | `/health` | ✅ Done | No |
 
 > **Note on `/research/start`:** The existing `POST /research/start` endpoint uses field names (`topic`, `objective`) that don't match the DB design (`company_name`, `company_website`, `research_objective`) and doesn't persist anything to MongoDB. It will be replaced by `POST /sessions` + `POST /sessions/{id}/run`.
